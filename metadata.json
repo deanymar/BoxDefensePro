@@ -1,0 +1,7 @@
+{
+  "name": "BoxDefensePro",
+  "description": "Mobile-first moving inventory system with QR tracking, photo documentation, and auto-generated liability documents.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

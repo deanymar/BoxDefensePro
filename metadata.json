@@ -1,6 +1,6 @@
 {
-  "name": "BoxDefensePro",
-  "description": "Mobile-first moving inventory system with QR tracking, photo documentation, and auto-generated liability documents.",
+  "name": "BoxDefense",
+  "description": "A legally defensible mobile moving inventory system for customers and moving companies featuring photo documentation and structured liability records.",
   "requestFramePermissions": [
     "camera"
   ]

@@ -1,127 +1,115 @@
-
-import React, { useState } from 'react';
-import { useStore } from './demo'; 
-import { Auth } from './views/Auth';
-import { Landing } from './views/Landing';
-import { CustomerDashboard } from './views/CustomerDashboard';
-import { BoxDetailView } from './views/BoxDetail';
-import { CompanyDashboard } from './views/CompanyDashboard';
-import { Shield, Moon, Sun, Home } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { db } from './services/db';
+import { serverCache } from './server/cache-generator';
+import { User, UserRole } from './types';
+import { Dashboard } from './components/Dashboard';
+import { Auth } from './components/Auth';
+import { MoveView } from './components/MoveView';
+import { LandingPage, LandingNav } from './components/LandingPage';
+import { LegalPage, EnterprisePage, PrivacyPolicy, TermsOfService, SafetyReport } from './components/StaticPages';
 
 const App: React.FC = () => {
-  const store = useStore();
-  const [currentBoxId, setCurrentBoxId] = useState<string | null>(null);
-  // Track if we should explicitly show the Auth screen (e.g., coming from Landing)
-  const [isAuthExplicitlyVisible, setIsAuthExplicitlyVisible] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [activeMoveId, setActiveMoveId] = useState<string | null>(null);
+  const [systemState, setSystemState] = useState<'uninitialized' | 'ready'>('uninitialized');
+  const [targetRole, setTargetRole] = useState<UserRole | null>(null);
+  const [currentLandingPage, setCurrentLandingPage] = useState<LandingNav>('home');
 
-  const handleStart = () => {
-    store.setShowLanding(false);
-    setIsAuthExplicitlyVisible(true);
+  useEffect(() => {
+    const checkSetup = () => {
+      const state = db.get();
+      if (state.users.length === 0) {
+        db.migrate();
+        db.seed();
+        serverCache.generateAll();
+      } else {
+        serverCache.generateAll();
+      }
+      setSystemState('ready');
+    };
+    checkSetup();
+  }, []);
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setActiveMoveId(null);
+    setTargetRole(null);
   };
 
-  const handleAuthSuccess = () => {
-    setIsAuthExplicitlyVisible(false);
-  };
-
-  if (store.showLanding) {
+  if (systemState === 'uninitialized') {
     return (
-      <div className={store.isDarkMode ? 'dark' : ''}>
-        <Landing 
-          onStart={handleStart} 
-          onToggleTheme={store.toggleDarkMode} 
-          isDarkMode={store.isDarkMode}
-          onShowDemo={() => {
-            store.loginAsDummyCompany();
-            setIsAuthExplicitlyVisible(false);
-          }}
-          currentUser={store.currentUser}
-        />
-      </div>
-    );
-  }
-
-  // Show Auth if explicitly requested OR if no user is logged in
-  if (isAuthExplicitlyVisible || !store.currentUser) {
-    return (
-      <div className={store.isDarkMode ? 'dark' : ''}>
-        <Auth 
-          onLoginCustomer={store.loginCustomer} 
-          onLoginCompany={store.loginCompany} 
-          onLoginDummyCompany={store.loginAsDummyCompany}
-          onBackToHome={() => {
-            store.setShowLanding(true);
-            setIsAuthExplicitlyVisible(false);
-          }}
-          onToggleTheme={store.toggleDarkMode}
-          isDarkMode={store.isDarkMode}
-          onSuccess={handleAuthSuccess}
-        />
-      </div>
-    );
-  }
-
-  const currentBox = store.boxes.find(b => b.id === currentBoxId);
-
-  if (store.currentUser.role === 'company') {
-    return (
-      <div className={store.isDarkMode ? 'dark' : ''}>
-        <div className="bg-slate-50 dark:bg-slate-950 min-h-screen">
-          <CompanyDashboard store={store} />
+      <div className="flex items-center justify-center min-h-screen bg-slate-900 text-white p-6">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-lg">Initializing Enterprise Environment...</p>
         </div>
       </div>
     );
   }
 
-  const customerMoves = store.moves.filter(m => m.customerPhone === store.currentUser?.phone);
+  // Handle Static Landing Pages
+  if (!currentUser) {
+    if (targetRole) {
+       return <Auth role={targetRole} onLogin={setCurrentUser} onBack={() => setTargetRole(null)} />;
+    }
 
+    switch (currentLandingPage) {
+      case 'legal': return <LegalPage onBack={() => setCurrentLandingPage('home')} />;
+      case 'enterprise': return <EnterprisePage onBack={() => setCurrentLandingPage('home')} />;
+      case 'privacy': return <PrivacyPolicy onBack={() => setCurrentLandingPage('home')} />;
+      case 'terms': return <TermsOfService onBack={() => setCurrentLandingPage('home')} />;
+      case 'safety': return <SafetyReport onBack={() => setCurrentLandingPage('home')} />;
+      default: return <LandingPage onStartAuth={setTargetRole} onNavigate={setCurrentLandingPage} />;
+    }
+  }
+
+  // Dashboard / Admin Layout
   return (
-    <div className={`${store.isDarkMode ? 'dark' : ''} min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300`}>
-      <div className="max-w-4xl mx-auto shadow-2xl relative bg-white dark:bg-slate-900 min-h-screen flex flex-col no-print">
-        <header className="bg-primary-gradient px-6 py-8 text-white flex justify-between items-center sticky top-0 z-40">
-          <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setCurrentBoxId(null)}>
-            <Shield className="w-7 h-7 text-white" />
-            <h1 className="text-2xl font-black tracking-tighter uppercase italic">BOXDEFENSE</h1>
+    <div className={`min-h-screen bg-slate-50 pb-20 md:pb-0 ${currentUser.role === 'admin' ? 'flex flex-col md:flex-row' : ''}`}>
+      {/* Sidebar for Admin on Desktop, otherwise just a header */}
+      {currentUser.role !== 'admin' && (
+        <header className="bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-50 flex justify-between items-center shadow-sm">
+          <div className="flex items-center gap-2">
+            <div className="bg-blue-600 text-white p-1.5 rounded-lg shadow-sm">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+            <h1 className="font-bold text-xl tracking-tight text-slate-900 uppercase">BoxDefense</h1>
           </div>
-          <div className="flex items-center space-x-4">
-             <button 
-                onClick={() => {
-                  store.setShowLanding(true);
-                  setIsAuthExplicitlyVisible(false);
-                }}
-                className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center group"
-                title="Return to Home"
-              >
-                <Home className="w-4 h-4 mr-2" />
-                <span className="text-[10px] font-bold uppercase hidden sm:inline">Home</span>
-              </button>
-             <button 
-                onClick={store.toggleDarkMode}
-                className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-              >
-                {store.isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-              </button>
-             <button onClick={store.logout} className="text-xs font-bold uppercase tracking-widest opacity-70 hover:opacity-100">
-               Logout
-             </button>
+          <div className="flex items-center gap-3">
+            <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-widest ${
+              currentUser.role === 'company' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
+            }`}>
+              {currentUser.role}
+            </span>
+            <button 
+              onClick={handleLogout}
+              className="text-slate-400 hover:text-red-500 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1l-1 1H3l-1-1V5l1-1h9l1 1v1" />
+              </svg>
+            </button>
           </div>
         </header>
+      )}
 
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {currentBoxId && currentBox ? (
-            <BoxDetailView 
-              box={currentBox} 
-              store={store} 
-              onBack={() => setCurrentBoxId(null)} 
-            />
-          ) : (
-            <CustomerDashboard 
-              moves={customerMoves} 
-              store={store} 
-              onSelectBox={setCurrentBoxId} 
-            />
-          )}
-        </div>
-      </div>
+      <main className={`flex-1 ${currentUser.role === 'admin' ? '' : 'max-w-4xl mx-auto p-4 md:p-8'}`}>
+        {activeMoveId ? (
+          <MoveView 
+            moveId={activeMoveId} 
+            user={currentUser} 
+            onBack={() => setActiveMoveId(null)} 
+          />
+        ) : (
+          <Dashboard 
+            user={currentUser} 
+            onSelectMove={setActiveMoveId}
+            onLogout={handleLogout}
+          />
+        )}
+      </main>
     </div>
   );
 };

@@ -1,74 +1,93 @@
 
-export enum MoveStatus {
-  PLANNING = 'PLANNING',
-  IN_PROGRESS = 'IN_PROGRESS',
-  COMPLETED = 'COMPLETED',
-  VERIFIED = 'VERIFIED'
-}
-
 export enum CountType {
-  EXACT = 'EXACT',
-  BROKEN = 'BROKEN',
-  OTHER = 'OTHER'
+  EXACT = 'exact',
+  BREAKABLE = 'broken',
+  MISC = 'other'
 }
 
-export type UserRole = 'customer' | 'company' | 'admin';
-
-export interface User {
-  id: string;
-  phone: string;
-  role: UserRole;
-  company_name?: string;
-  is_flagged?: boolean;
-  created_at: string;
+export enum MoveStatus {
+  CREATED = 'created',
+  PACKING = 'packing',
+  FORM_GENERATED = 'form_generated',
+  SIGNED_CUSTOMER = 'signed_customer',
+  SIGNED_MOVER = 'signed_mover',
+  CLAIM = 'claim',
+  CLAIM_RESOLVED = 'claim_resolved', 
+  COMPLETED = 'completed'
 }
 
-export interface PhotoMetadata {
-  id: string;
-  original_url: string;
-  thumbnail_url: string;
-  created_at: string;
+export enum ProtectionTier {
+  STANDARD = 'standard',
+  ENHANCED = 'enhanced'
 }
 
-export interface Move {
-  id: string;
-  user_id: string;
-  assigned_company_id?: string;
-  status: MoveStatus;
-  created_at: string;
+export interface PhotoWithMeta {
+  data: string;
+  timestamp: string;
 }
 
-export interface Box {
-  id: string;
-  move_id: string;
-  name: string;
-  photos: PhotoMetadata[];
-  qr_code?: string; // Encrypted string or ID
-  created_at: string;
+export interface DamageReport {
+  photos: PhotoWithMeta[];
+  description: string;
+  createdAt: string;
+}
+
+export interface ClaimResolution {
+  payoutAmount: number;
+  payer: 'insurance' | 'company';
+  resolutionDate: string;
+  outcomeNotes: string;
+  durationDays: number;
 }
 
 export interface Item {
   id: string;
-  box_id: string;
+  boxId: string;
   name: string;
-  description: string;
-  count_type: CountType;
+  description?: string;
+  countType: CountType;
   quantity: number;
-  weight?: number; // Optional inventory weight field
-  photos: PhotoMetadata[];
-  created_at: string;
+  photos: PhotoWithMeta[];
+  damageReport?: DamageReport;
+  createdAt: string;
 }
 
-export interface DashboardSummary {
-  total_moves: number;
-  active_boxes: number;
-  unverified_items: number;
-  system_alerts: number;
-  last_updated: string;
+export interface Box {
+  id: string;
+  moveId: string;
+  name: string;
+  photos: PhotoWithMeta[];
+  damageReport?: DamageReport;
+  createdAt: string;
 }
 
-export interface MoveFullDetail extends Move {
-  boxes: (Box & { items: Item[] })[];
-  customer_phone?: string;
-  company_name?: string;
+export interface Move {
+  id: string;
+  companyId: string;
+  customerPhone: string;
+  customerName: string;
+  moveDate: string;
+  createdAt: string;
+  status: MoveStatus;
+  protectionTier: ProtectionTier;
+  protectionPrice: number;
+  platformFee: number;
+  claimOpenedDate?: string;
+  claimResolution?: ClaimResolution;
+}
+
+export interface User {
+  id: string;
+  phone?: string;
+  companyName?: string;
+  role: 'customer' | 'company';
+  plan?: string;
+  createdAt: string;
+}
+
+export interface AppState {
+  currentUser: User | null;
+  moves: Move[];
+  boxes: Box[];
+  items: Item[];
 }
